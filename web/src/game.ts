@@ -74,6 +74,25 @@ export function startGame(canvas: HTMLCanvasElement, onScore: (score: number) =>
     avatarIdx: 0,
     avatarsUnlocked: [0],
   };
+  let pointerAction: ((x: number, y: number) => void) | null = null;
+
+  const canvasPointToWorld = (event: PointerEvent) => {
+    const rect = canvas.getBoundingClientRect();
+    const scale = Math.min(rect.width / VW, rect.height / VH);
+    const offsetX = (rect.width - VW * scale) / 2;
+    const offsetY = (rect.height - VH * scale) / 2;
+    return {
+      x: (event.clientX - rect.left - offsetX) / scale,
+      y: (event.clientY - rect.top - offsetY) / scale,
+    };
+  };
+
+  const onPointerDown = (event: PointerEvent) => {
+    event.preventDefault();
+    const point = canvasPointToWorld(event);
+    pointerAction?.(point.x, point.y);
+  };
+  canvas.addEventListener("pointerdown", onPointerDown, { passive: false });
 
   const resetRun = () => {
     state = { ...state, score: 0, level: 1, coins: 0 };
@@ -108,6 +127,11 @@ export function startGame(canvas: HTMLCanvasElement, onScore: (score: number) =>
       k.pos(16, 562),
       k.color(15, 23, 42),
     ]);
+    k.add([
+      k.text("Arrows / WASD / tap around the player", { size: 12 }),
+      k.pos(16, 18),
+      k.color(71, 85, 105),
+    ]);
 
     const cars = [
       { y: 160, x: 24, dir: 1, color: [239, 68, 68] as const },
@@ -138,8 +162,19 @@ export function startGame(canvas: HTMLCanvasElement, onScore: (score: number) =>
     k.onKeyPress("right", () => movePlayer(STEP, 0));
     k.onKeyPress("up", () => movePlayer(0, -STEP));
     k.onKeyPress("down", () => movePlayer(0, STEP));
-    k.onMousePress(() => movePlayer(0, -STEP));
-    k.onTouchStart(() => movePlayer(0, -STEP));
+    k.onKeyPress("a", () => movePlayer(-STEP, 0));
+    k.onKeyPress("d", () => movePlayer(STEP, 0));
+    k.onKeyPress("w", () => movePlayer(0, -STEP));
+    k.onKeyPress("s", () => movePlayer(0, STEP));
+    pointerAction = (x, y) => {
+      const dx = x - player.pos.x;
+      const dy = y - player.pos.y;
+      if (Math.abs(dx) > Math.abs(dy)) {
+        movePlayer(dx < 0 ? -STEP : STEP, 0);
+      } else {
+        movePlayer(0, dy < 0 ? -STEP : STEP);
+      }
+    };
 
     k.onUpdate(() => {
       for (const car of cars) {
@@ -211,10 +246,12 @@ export function startGame(canvas: HTMLCanvasElement, onScore: (score: number) =>
     ]);
 
     k.onKeyPress("space", resetRun);
-    k.onMousePress(resetRun);
-    k.onTouchStart(resetRun);
+    pointerAction = resetRun;
   });
 
   k.go("play");
-  return () => k.quit();
+  return () => {
+    canvas.removeEventListener("pointerdown", onPointerDown);
+    k.quit();
+  };
 }
