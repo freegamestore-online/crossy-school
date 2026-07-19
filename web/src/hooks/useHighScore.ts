@@ -1,24 +1,25 @@
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 
-/**
- * Persist a high score in localStorage.
- * Returns [highScore, updateIfHigher].
- */
-export function useHighScore(key: string): [number, (score: number) => void] {
-  const [highScore, setHighScore] = useState<number>(() => {
-    const stored = localStorage.getItem(key);
-    return stored ? parseInt(stored, 10) || 0 : 0;
-  });
+const HIGH_SCORE_KEY = "crossy_school_highscore";
 
-  const update = useCallback(
-    (score: number) => {
-      if (score > highScore) {
-        setHighScore(score);
-        localStorage.setItem(key, String(score));
-      }
-    },
-    [key, highScore],
-  );
+export function useHighScore() {
+  const getHighScore = useCallback(() => {
+    const raw = localStorage.getItem(HIGH_SCORE_KEY);
+    return raw ? parseInt(raw, 10) : 0;
+  }, []);
 
-  return [highScore, update];
+  const setHighScore = useCallback((score: number) => {
+    localStorage.setItem(HIGH_SCORE_KEY, score.toString());
+  }, []);
+
+  return { getHighScore, setHighScore };
+}
+
+export function getHighScore(): number {
+  const raw = localStorage.getItem(HIGH_SCORE_KEY);
+  return raw ? parseInt(raw, 10) : 0;
+}
+
+export function setHighScore(score: number): void {
+  localStorage.setItem(HIGH_SCORE_KEY, score.toString());
 }

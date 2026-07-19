@@ -1,92 +1,135 @@
-import kaplay from "kaplay";
+import k from "@freegamestore/games/kaplay";
+import { Avatar, avatars } from "./avatars";
+import { getHighScore, setHighScore } from "./hooks/useHighScore";
 
-// A complete, playable game in ~75 lines — because KAPLAY gives you sprites,
-// input, gravity, areas and collisions as verbs. Compare this to hand-rolling a
-// game loop, a renderer and a physics step on a raw <canvas>. Replace the body of
-// the "play" scene to build your own game; keep `startGame`'s signature so
-// App.tsx can mount it.
-//
-// Catch: move the basket to catch falling fruit. Miss three and it's game over.
+interface GameState {
+  score: number;
+  level: number;
+  coins: number;
+  avatar: Avatar;
+  avatarsUnlocked: number[];
+  isMuted: boolean;
+}
 
-const VW = 400; // virtual width  (KAPLAY letterboxes this to the real canvas)
-const VH = 600; // virtual height
+const AVATAR_UNLOCK_LEVELS = [1, 2, 4, 6];
 
-export function startGame(canvas: HTMLCanvasElement, onScore: (n: number) => void): () => void {
-  const k = kaplay({
-    canvas,
-    width: VW,
-    height: VH,
-    letterbox: true,
-    background: [24, 24, 27],
-    global: false, // don't pollute window — call methods on `k`
-    pixelDensity: Math.min(window.devicePixelRatio || 1, 2),
-  });
+export function startGame(canvas: HTMLCanvasElement, onScore: (score: number) => void) {
+  k.setCanvas(canvas);
+  let state: GameState = {
+    score: 0,
+    level: 1,
+    coins: 0,
+    avatar: avatars[0],
+    avatarsUnlocked: [0],
+    isMuted: true,
+  };
 
-  k.scene("play", () => {
-    let score = 0;
-    let lives = 3;
-    onScore(0);
+  const music = k.loadSound("music", "/music/crossy-school.mp3");
+  let musicInst: ReturnType<typeof k.play>|undefined;
 
-    const basket = k.add([
-      k.rect(72, 20, { radius: 4 }),
-      k.color(16, 185, 129), // brand emerald
-      k.area(),
-      k.anchor("center"),
-      k.pos(VW / 2, VH - 48),
-      "basket",
-    ]);
-
-    // Move the basket to the pointer (touch or mouse) — the whole control scheme.
-    k.onMouseMove((mpos) => {
-      basket.pos.x = k.clamp(mpos.x, 36, VW - 36);
-    });
-    // Keyboard fallback for desktop.
-    k.onUpdate(() => {
-      if (k.isKeyDown("left")) basket.pos.x = Math.max(36, basket.pos.x - 6);
-      if (k.isKeyDown("right")) basket.pos.x = Math.min(VW - 36, basket.pos.x + 6);
-    });
-
-    // Spawn a piece of fruit that falls at a random speed.
-    function spawnFruit() {
-      k.add([
-        k.circle(k.rand(8, 13)),
-        k.color(k.choose([k.rgb(239, 68, 68), k.rgb(250, 204, 21), k.rgb(59, 130, 246), k.rgb(244, 114, 182)])),
-        k.area(),
-        k.anchor("center"),
-        k.pos(k.rand(24, VW - 24), -20),
-        k.move(k.DOWN, k.rand(120, 220)),
-        "fruit",
-      ]);
-      k.wait(k.rand(0.5, 1.1), spawnFruit);
-    }
-    spawnFruit();
-
-    basket.onCollide("fruit", (fruit) => {
-      k.destroy(fruit);
-      score += 1;
-      onScore(score);
-    });
-
-    // A fruit that falls past the bottom costs a life.
-    k.onUpdate("fruit", (fruit) => {
-      if (fruit.pos.y > VH + 20) {
-        k.destroy(fruit);
-        lives -= 1;
-        if (lives <= 0) k.go("over", score);
+  function unlockAvatars(level: number) {
+    AVATAR_UNLOCK_LEVELS.forEach((lvl, i) => {
+      if (level >= lvl && !state.avatarsUnlocked.includes(i)) {
+        state.avatarsUnlocked.push(i);
       }
     });
+  }
+
+  function showAvatarPicker() {
+    // Simple picker UI overlay
+    // (Implementation later)
+  }
+
+  function startLevel(level: number) {
+    k.scene("play", () => {
+      unlockAvatars(level);
+      let player = k.add([
+        k.pos(100, 400),
+        k.sprite(state.avatar.sprite),
+        k.area(),
+        k.body(),
+        k.z(10),
+        "player",
+      ]);
+      // Add cars, logs, coins, school target...
+      // (Implementation in next file)
+
+      k.onKeyPress("space", () => {
+        // Move forward
+        player.move(0, -32);
+      });
+      k.onKeyPress("left", () => player.move(-32,0));
+      k.onKeyPress("right", () => player.move(32,0));
+      k.onKeyPress("up", () => player.move(0,-32));
+      k.onKeyPress("down", () => player.move(0,32));
+
+      player.onCollide("car", () => {
+        k.add([
+          k.pos(player.pos),
+          k.sprite("squash"),
+          k.z(20),
+        ]);
+        k.wait(1, () => k.go("over", state.score));
+      });
+      player.onCollide("coin", (coin) => {
+        state.coins += 1;
+        state.score += 1;
+        onScore(state.score);
+        k.destroy(coin);
+      });
+      player.onCollide("school", () => {
+        state.level += 1;
+        state.score += 5;
+        onScore(state.score);
+        startLevel(state.level);
+      });
+    });
+    k.go("play");
+  }
+
+  k.scene("over", (score: number) => {
+    if (score > getHighScore("crossy-school")) {
+      setHighScore("crossy-school", score);
+    }
+    k.add([
+      k.text("Game Over!", { size: 32 }),
+      k.pos(120, 100),
+      k.z(50),
+    ]);
+    k.add([
+      k.text(`Score: ${score}`, { size: 24 }),
+      k.pos(120, 140),
+      k.z(50),
+    ]);
+    k.add([
+      k.text("Press Space to Restart", { size: 18 }),
+      k.pos(120, 180),
+      k.z(50),
+    ]);
+    k.onKeyPress("space", () => {
+      state = {
+        ...state,
+        score: 0,
+        level: 1,
+        coins: 0,
+        avatar: avatars[0],
+        avatarsUnlocked: [0],
+      };
+      startLevel(1);
+    });
   });
 
-  k.scene("over", (finalScore: number) => {
-    k.add([k.text("Game Over", { size: 40 }), k.anchor("center"), k.pos(VW / 2, VH / 2 - 30), k.color(255, 255, 255)]);
-    k.add([k.text(`Score: ${finalScore}`, { size: 24 }), k.anchor("center"), k.pos(VW / 2, VH / 2 + 16), k.color(16, 185, 129)]);
-    k.add([k.text("tap to play again", { size: 16 }), k.anchor("center"), k.pos(VW / 2, VH / 2 + 56), k.color(160, 160, 160)]);
-    k.onMousePress(() => k.go("play"));
-    k.onKeyPress("space", () => k.go("play"));
+  startLevel(1);
+
+  // Music controls
+  k.onMousePress(() => {
+    if (state.isMuted) {
+      musicInst = k.play("music", { loop: true, volume: 0.5 });
+      state.isMuted = false;
+    }
   });
 
-  k.go("play");
-
-  // KAPLAY manages the RAF loop; return a teardown so React can unmount cleanly.
-  return () => k.quit();
+  return () => {
+    if (musicInst) musicInst.stop();
+  };
 }
