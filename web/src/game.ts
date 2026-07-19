@@ -1,12 +1,12 @@
 import k from "@freegamestore/games/kaplay";
-import { Avatar, avatars } from "./avatars";
+import { AVATARS } from "./avatars";
 import { getHighScore, setHighScore } from "./hooks/useHighScore";
 
 interface GameState {
   score: number;
   level: number;
   coins: number;
-  avatar: Avatar;
+  avatarIdx: number;
   avatarsUnlocked: number[];
   isMuted: boolean;
 }
@@ -19,13 +19,12 @@ export function startGame(canvas: HTMLCanvasElement, onScore: (score: number) =>
     score: 0,
     level: 1,
     coins: 0,
-    avatar: avatars[0],
+    avatarIdx: 0,
     avatarsUnlocked: [0],
     isMuted: true,
   };
 
-  const music = k.loadSound("music", "/music/crossy-school.mp3");
-  let musicInst: ReturnType<typeof k.play>|undefined;
+  let musicInst: ReturnType<typeof k.play> | undefined;
 
   function unlockAvatars(level: number) {
     AVATAR_UNLOCK_LEVELS.forEach((lvl, i) => {
@@ -35,29 +34,73 @@ export function startGame(canvas: HTMLCanvasElement, onScore: (score: number) =>
     });
   }
 
-  function showAvatarPicker() {
-    // Simple picker UI overlay
-    // (Implementation later)
+  function showAvatarPicker(onPick: (idx: number) => void) {
+    // Simple avatar picker overlay
+    k.add([
+      k.rect(320, 180),
+      k.pos(80, 180),
+      k.color("#fff"),
+      k.z(100),
+    ]);
+    state.avatarsUnlocked.forEach((idx, i) => {
+      k.add([
+        k.sprite(AVATARS[idx].sprite),
+        k.pos(120 + i*60, 220),
+        k.area(),
+        k.z(101),
+        "pickable",
+        { idx },
+      ]);
+    });
+    k.onClick("pickable", (e) => {
+      onPick(e.idx);
+      k.destroyAll("pickable");
+      k.destroyAll((obj) => obj.z === 100);
+    });
   }
 
   function startLevel(level: number) {
     k.scene("play", () => {
       unlockAvatars(level);
       let player = k.add([
-        k.pos(100, 400),
-        k.sprite(state.avatar.sprite),
+        k.pos(160, 400),
+        k.sprite(AVATARS[state.avatarIdx].sprite),
         k.area(),
         k.body(),
         k.z(10),
         "player",
       ]);
-      // Add cars, logs, coins, school target...
-      // (Implementation in next file)
+      // Add cars
+      for (let i = 0; i < 3 + level; i++) {
+        k.add([
+          k.pos(0, 120 + i * 50),
+          k.sprite("car"),
+          k.area(),
+          k.move(k.vec2(1,0), 100 + 20*level),
+          k.z(5),
+          "car",
+        ]);
+      }
+      // Add coins
+      for (let i = 0; i < 5; i++) {
+        k.add([
+          k.pos(60 + i * 50, 150 + i * 40),
+          k.sprite("coin"),
+          k.area(),
+          k.z(15),
+          "coin",
+        ]);
+      }
+      // Add school
+      k.add([
+        k.pos(160, 40),
+        k.sprite("school"),
+        k.area(),
+        k.z(20),
+        "school",
+      ]);
 
-      k.onKeyPress("space", () => {
-        // Move forward
-        player.move(0, -32);
-      });
+      k.onKeyPress("space", () => player.move(0, -32));
       k.onKeyPress("left", () => player.move(-32,0));
       k.onKeyPress("right", () => player.move(32,0));
       k.onKeyPress("up", () => player.move(0,-32));
@@ -69,7 +112,7 @@ export function startGame(canvas: HTMLCanvasElement, onScore: (score: number) =>
           k.sprite("squash"),
           k.z(20),
         ]);
-        k.wait(1, () => k.go("over", state.score));
+        k.wait(0.7, () => k.go("over", state.score));
       });
       player.onCollide("coin", (coin) => {
         state.coins += 1;
@@ -81,15 +124,18 @@ export function startGame(canvas: HTMLCanvasElement, onScore: (score: number) =>
         state.level += 1;
         state.score += 5;
         onScore(state.score);
-        startLevel(state.level);
+        showAvatarPicker((idx) => {
+          state.avatarIdx = idx;
+          startLevel(state.level);
+        });
       });
     });
     k.go("play");
   }
 
   k.scene("over", (score: number) => {
-    if (score > getHighScore("crossy-school")) {
-      setHighScore("crossy-school", score);
+    if (score > getHighScore()) {
+      setHighScore(score);
     }
     k.add([
       k.text("Game Over!", { size: 32 }),
@@ -97,7 +143,7 @@ export function startGame(canvas: HTMLCanvasElement, onScore: (score: number) =>
       k.z(50),
     ]);
     k.add([
-      k.text(`Score: ${score}`, { size: 24 }),
+      k.text(`Score: ${score}", { size: 24 }),
       k.pos(120, 140),
       k.z(50),
     ]);
@@ -112,7 +158,7 @@ export function startGame(canvas: HTMLCanvasElement, onScore: (score: number) =>
         score: 0,
         level: 1,
         coins: 0,
-        avatar: avatars[0],
+        avatarIdx: 0,
         avatarsUnlocked: [0],
       };
       startLevel(1);
