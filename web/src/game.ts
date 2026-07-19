@@ -24,6 +24,7 @@ export function startGame(canvas: HTMLCanvasElement, onScore: (score: number) =>
     isMuted: true,
   };
 
+  // Placeholder for music (actual playback needs asset)
   let musicInst: ReturnType<typeof k.play> | undefined;
 
   function unlockAvatars(level: number) {
@@ -34,100 +35,81 @@ export function startGame(canvas: HTMLCanvasElement, onScore: (score: number) =>
     });
   }
 
-  function showAvatarPicker(onPick: (idx: number) => void) {
-    // Simple avatar picker overlay
-    k.add([
-      k.rect(320, 180),
-      k.pos(80, 180),
-      k.color("#fff"),
-      k.z(100),
-    ]);
-    state.avatarsUnlocked.forEach((idx, i) => {
-      k.add([
-        k.sprite(AVATARS[idx].sprite),
-        k.pos(120 + i*60, 220),
-        k.area(),
-        k.z(101),
-        "pickable",
-        { idx },
-      ]);
-    });
-    k.onClick("pickable", (e) => {
-      onPick(e.idx);
-      k.destroyAll("pickable");
-      k.destroyAll((obj) => obj.z === 100);
-    });
-  }
-
   function startLevel(level: number) {
     k.scene("play", () => {
       unlockAvatars(level);
-      let player = k.add([
-        k.pos(160, 400),
-        k.sprite(AVATARS[state.avatarIdx].sprite),
+      const avatar = AVATARS[state.avatarIdx];
+      const player = k.add([
+        k.pos(100, 400),
+        k.rect(32, 32),
+        k.color(avatar.color),
         k.area(),
         k.body(),
-        k.z(10),
-        "player",
-      ]);
-      // Add cars
-      for (let i = 0; i < 3 + level; i++) {
-        k.add([
-          k.pos(0, 120 + i * 50),
-          k.sprite("car"),
-          k.area(),
-          k.move(k.vec2(1,0), 100 + 20*level),
-          k.z(5),
-          "car",
-        ]);
-      }
-      // Add coins
-      for (let i = 0; i < 5; i++) {
-        k.add([
-          k.pos(60 + i * 50, 150 + i * 40),
-          k.sprite("coin"),
-          k.area(),
-          k.z(15),
-          "coin",
-        ]);
-      }
-      // Add school
-      k.add([
-        k.pos(160, 40),
-        k.sprite("school"),
-        k.area(),
-        k.z(20),
-        "school",
+        "player"
       ]);
 
-      k.onKeyPress("space", () => player.move(0, -32));
-      k.onKeyPress("left", () => player.move(-32,0));
-      k.onKeyPress("right", () => player.move(32,0));
-      k.onKeyPress("up", () => player.move(0,-32));
-      k.onKeyPress("down", () => player.move(0,32));
+      // Add car obstacle
+      const car = k.add([
+        k.pos(0, 200),
+        k.rect(64, 32),
+        k.color("#ef4444"),
+        k.area(),
+        "car"
+      ]);
+      k.onUpdate(() => {
+        car.move(120, 0);
+        if (car.pos.x > 320) car.pos.x = -64;
+      });
+
+      // Add coin
+      const coin = k.add([
+        k.pos(200, 300),
+        k.circle(16),
+        k.color("#facc15"),
+        k.area(),
+        "coin"
+      ]);
+
+      // School finish
+      const school = k.add([
+        k.pos(100, 50),
+        k.rect(64, 32),
+        k.color("#38bdf8"),
+        k.area(),
+        "school"
+      ]);
+
+      // Controls
+      k.onKeyPress("left", () => player.move(-32, 0));
+      k.onKeyPress("right", () => player.move(32, 0));
+      k.onKeyPress("up", () => player.move(0, -32));
+      k.onKeyPress("down", () => player.move(0, 32));
+
+      // Touch controls (simple, for demo)
+      k.onTouchStart(() => player.move(0, -32));
 
       player.onCollide("car", () => {
         k.add([
-          k.pos(player.pos),
-          k.sprite("squash"),
-          k.z(20),
+          k.pos(player.pos.x, player.pos.y),
+          k.rect(32, 32),
+          k.color("#d1d5db"),
+          k.area(),
+          "squash"
         ]);
-        k.wait(0.7, () => k.go("over", state.score));
+        k.destroy(player);
+        k.wait(0.8, () => k.go("over", state.score));
       });
-      player.onCollide("coin", (coin) => {
+      player.onCollide("coin", (c) => {
         state.coins += 1;
         state.score += 1;
         onScore(state.score);
-        k.destroy(coin);
+        k.destroy(c);
       });
       player.onCollide("school", () => {
         state.level += 1;
         state.score += 5;
         onScore(state.score);
-        showAvatarPicker((idx) => {
-          state.avatarIdx = idx;
-          startLevel(state.level);
-        });
+        startLevel(state.level);
       });
     });
     k.go("play");
@@ -140,17 +122,14 @@ export function startGame(canvas: HTMLCanvasElement, onScore: (score: number) =>
     k.add([
       k.text("Game Over!", { size: 32 }),
       k.pos(120, 100),
-      k.z(50),
     ]);
     k.add([
       k.text(`Score: ${score}", { size: 24 }),
       k.pos(120, 140),
-      k.z(50),
     ]);
     k.add([
       k.text("Press Space to Restart", { size: 18 }),
       k.pos(120, 180),
-      k.z(50),
     ]);
     k.onKeyPress("space", () => {
       state = {
@@ -167,10 +146,11 @@ export function startGame(canvas: HTMLCanvasElement, onScore: (score: number) =>
 
   startLevel(1);
 
-  // Music controls
+  // Music controls (placeholder)
   k.onMousePress(() => {
     if (state.isMuted) {
-      musicInst = k.play("music", { loop: true, volume: 0.5 });
+      // Uncomment below if you have an asset:
+      // musicInst = k.play("music", { loop: true, volume: 0.5 });
       state.isMuted = false;
     }
   });
