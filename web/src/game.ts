@@ -1,11 +1,25 @@
 import kaplay from "kaplay";
 import { AVATARS } from "./avatars";
-import { getHighScore, setHighScore } from "./hooks/useHighScore";
+import { getHighScore, setHighScore } from "./highScore";
 
 const VW = 400;
 const VH = 600;
 const STEP = 36;
 const AVATAR_UNLOCK_LEVELS = [1, 2, 4, 6];
+
+// One car per lane; y is the lane centre.
+const LANES = [
+  { y: 160, x: 24, dir: 1, color: [239, 68, 68] },
+  { y: 236, x: 330, dir: -1, color: [59, 130, 246] },
+  { y: 312, x: 92, dir: 1, color: [245, 158, 11] },
+  { y: 388, x: 260, dir: -1, color: [168, 85, 247] },
+] as const;
+
+/** Lane markings sit halfway between adjacent lane centres, so they never
+ *  run through the cars. */
+export function laneDividerYs(): number[] {
+  return LANES.slice(1).map((lane, i) => (LANES[i]!.y + lane.y) / 2);
+}
 
 interface GameState {
   score: number;
@@ -16,10 +30,6 @@ interface GameState {
 }
 
 type K = ReturnType<typeof kaplay>;
-
-function clampToRoad(k: K, value: number, min: number, max: number) {
-  return k.clamp(value, min, max);
-}
 
 function unlockAvatars(state: GameState) {
   for (let i = 0; i < AVATAR_UNLOCK_LEVELS.length; i++) {
@@ -108,8 +118,8 @@ export function startGame(canvas: HTMLCanvasElement, onScore: (score: number) =>
 
     k.add([k.pos(0, 0), k.rect(VW, VH), k.color(226, 232, 240)]);
     k.add([k.pos(0, 116), k.rect(VW, 328), k.color(51, 65, 85)]);
-    for (let y = 152; y < 420; y += 72) {
-      k.add([k.pos(0, y), k.rect(VW, 4), k.color(148, 163, 184)]);
+    for (const y of laneDividerYs()) {
+      k.add([k.pos(0, y - 2), k.rect(VW, 4), k.color(148, 163, 184)]);
     }
     k.add([k.pos(0, 470), k.rect(VW, 130), k.color(34, 197, 94)]);
     drawSchool(k, state.level);
@@ -128,17 +138,18 @@ export function startGame(canvas: HTMLCanvasElement, onScore: (score: number) =>
       k.color(15, 23, 42),
     ]);
     k.add([
+      k.text(`Best: ${getHighScore()}`, { size: 12 }),
+      k.pos(VW - 16, 562),
+      k.anchor("topright"),
+      k.color(15, 23, 42),
+    ]);
+    k.add([
       k.text("Arrows / WASD / tap around the player", { size: 12 }),
       k.pos(16, 18),
       k.color(71, 85, 105),
     ]);
 
-    const cars = [
-      { y: 160, x: 24, dir: 1, color: [239, 68, 68] as const },
-      { y: 236, x: 330, dir: -1, color: [59, 130, 246] as const },
-      { y: 312, x: 92, dir: 1, color: [245, 158, 11] as const },
-      { y: 388, x: 260, dir: -1, color: [168, 85, 247] as const },
-    ].map((car) =>
+    const cars = LANES.map((car) =>
       k.add([
         k.pos(car.x, car.y),
         k.rect(70, 30, { radius: 5 }),
@@ -154,18 +165,14 @@ export function startGame(canvas: HTMLCanvasElement, onScore: (score: number) =>
 
     const movePlayer = (dx: number, dy: number) => {
       if (finished) return;
-      player.pos.x = clampToRoad(k, player.pos.x + dx, 18, VW - 18);
-      player.pos.y = clampToRoad(k, player.pos.y + dy, 48, VH - 28);
+      player.pos.x = k.clamp(player.pos.x + dx, 18, VW - 18);
+      player.pos.y = k.clamp(player.pos.y + dy, 48, VH - 28);
     };
 
-    k.onKeyPress("left", () => movePlayer(-STEP, 0));
-    k.onKeyPress("right", () => movePlayer(STEP, 0));
-    k.onKeyPress("up", () => movePlayer(0, -STEP));
-    k.onKeyPress("down", () => movePlayer(0, STEP));
-    k.onKeyPress("a", () => movePlayer(-STEP, 0));
-    k.onKeyPress("d", () => movePlayer(STEP, 0));
-    k.onKeyPress("w", () => movePlayer(0, -STEP));
-    k.onKeyPress("s", () => movePlayer(0, STEP));
+    k.onKeyPress(["left", "a"], () => movePlayer(-STEP, 0));
+    k.onKeyPress(["right", "d"], () => movePlayer(STEP, 0));
+    k.onKeyPress(["up", "w"], () => movePlayer(0, -STEP));
+    k.onKeyPress(["down", "s"], () => movePlayer(0, STEP));
     pointerAction = (x, y) => {
       const dx = x - player.pos.x;
       const dy = y - player.pos.y;
