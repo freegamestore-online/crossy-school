@@ -1,4 +1,17 @@
 @import "tailwindcss";
+@import "@freegamestore/games/theme.css";
+@source "../node_modules/@freegamestore/games/dist";
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-panel: var(--panel);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-danger: var(--danger);
+  --font-display: "Fraunces", serif;
+}
 
 /* Fonts loaded via <link> in index.html (Manrope + Fraunces from Google Fonts) */
 
@@ -17,6 +30,7 @@
   --success: #16a34a;
   --warning: #d97706;
   --error: #dc2626;
+  --danger: #dc2626;
 
   /* Accent */
   --accent: #2563eb;
@@ -48,6 +62,7 @@
     --success: #22c55e;
     --warning: #fbbf24;
     --error: #ef4444;
+    --danger: #ef4444;
 
     --accent-soft: #1a2e26;
 
